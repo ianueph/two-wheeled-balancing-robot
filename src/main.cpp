@@ -223,7 +223,8 @@ void controlDCMotors(int PIDvalue) {
   motor_left.run(direction ? BACKWARD : FORWARD);
   motor_right.run(direction ? BACKWARD : FORWARD);
 
-  Serial.print("direction:\t");
+  #ifdef DEBUG_MODE
+  Serial.print("\tdirection:\t");
   Serial.print(direction ? "Forward " : "Backward");
   Serial.print("\trate:\t");
   Serial.println(rate);
