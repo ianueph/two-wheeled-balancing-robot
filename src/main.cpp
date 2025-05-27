@@ -2,6 +2,7 @@
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "QuickPID.h"
+#include "AFMotor.h"
 
 /*---
 ---
@@ -70,10 +71,8 @@ Motor Controller Declarations and Variables
 ---
 ---*/ 
 
-byte leftDIO = 2;
-byte leftPWM = 5;
-byte rightDIO = 4;
-byte rightPWM = 6;
+AF_DCMotor motor_left(1);
+AF_DCMotor motor_right(2);
 
 void DMPDataReady() {
   MPUInterrupt = true;
@@ -172,10 +171,8 @@ void setupPID() {
 }
 
 void setupMotorController() {
-  pinMode(leftDIO, OUTPUT);
-  pinMode(leftPWM, OUTPUT);
-  pinMode(rightDIO, OUTPUT);
-  pinMode(rightPWM, OUTPUT);
+  motor_left.setSpeed(0);
+  motor_right.setSpeed(0);
 }
 
 float readPitch() {
@@ -213,10 +210,10 @@ void controlDCMotors(int PIDvalue) {
   float rate = abs(PIDvalue);
   float direction = (PIDvalue >= 0);
 
-  digitalWrite(leftDIO, direction);
-  analogWrite(leftPWM, rate);
-  digitalWrite(rightDIO, direction);
-  analogWrite(rightPWM, rate);
+  motor_left.setSpeed(rate);
+  motor_right.setSpeed(rate);
+  motor_left.run(direction ? FORWARD : BACKWARD);
+  motor_right.run(direction ? FORWARD : BACKWARD);
 
   Serial.print("direction:\t");
   Serial.print(direction ? "Forward " : "Backward");
