@@ -220,8 +220,8 @@ void controlDCMotors(int PIDvalue) {
 
   motor_left.setSpeed(rate);
   motor_right.setSpeed(rate);
-  motor_left.run(direction ? FORWARD : BACKWARD);
-  motor_right.run(direction ? FORWARD : BACKWARD);
+  motor_left.run(direction ? BACKWARD : FORWARD);
+  motor_right.run(direction ? BACKWARD : FORWARD);
 
   Serial.print("direction:\t");
   Serial.print(direction ? "Forward " : "Backward");
