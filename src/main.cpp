@@ -234,15 +234,11 @@ void controlDCMotors(int PIDvalue) {
 void setup() {
   setupMPU6050();
   setupPID();
+  setupMotorController();
 }
 
 void loop() {
   if (!DMPReady) return; // Stop the program if DMP programming fails.
   computePID();
   controlDCMotors(Output);
-}
-
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
 }
