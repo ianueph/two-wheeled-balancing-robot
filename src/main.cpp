@@ -17,6 +17,7 @@ MPU 6050 Declarations and Variables
 MPU6050 mpu;
 
 #define OUTPUT_READABLE_YAWPITCHROLL
+#define DEBUG_MODE
 
 int const INTERRUPT_PIN = 2;  // Define the interruption #0 pin
 bool blinkState;
@@ -187,6 +188,13 @@ float readPitch() {
       pitch = ypr[1] * 180/M_PI;
       roll = ypr[2] * 180/M_PI;
 
+      #ifdef DEBUG_MODE
+      Serial.print("y,p,r:\t");
+      Serial.print(yaw);
+      Serial.print(pitch);
+      Serial.print(roll);
+      #endif
+
       /* Display Euler angles in degrees */
       mpu.dmpGetQuaternion(&q, FIFOBuffer);
       mpu.dmpGetGravity(&gravity, &q);
@@ -219,6 +227,7 @@ void controlDCMotors(int PIDvalue) {
   Serial.print(direction ? "Forward " : "Backward");
   Serial.print("\trate:\t");
   Serial.println(rate);
+  #endif
 }
 
 void setup() {
