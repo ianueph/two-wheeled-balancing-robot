@@ -1,10 +1,21 @@
 #include <Arduino.h>
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
+#include "QuickPID.h"
+
+/*---
+---
+---
+---
+MPU 6050 Declarations and Variables
+---
+---
+---
+---*/ 
 
 MPU6050 mpu;
 
-#define OUTPUT_READABLE_QUATERNION
+#define OUTPUT_READABLE_YAWPITCHROLL
 
 int const INTERRUPT_PIN = 2;  // Define the interruption #0 pin
 bool blinkState;
@@ -31,11 +42,44 @@ uint8_t teapotPacket[14] = { '$', 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x00, '\r'
 
 /*------Interrupt detection routine------*/
 volatile bool MPUInterrupt = false;     // Indicates whether MPU6050 interrupt pin has gone high
+
+/*---
+---
+---
+---
+PID Control Declarations and Variables
+---
+---
+---
+---*/ 
+
+//Define Variables we'll be connecting to
+float Setpoint, Input, Output;
+float Kp = 6, Ki = .5, Kd = 2.5;
+
+//Specify PID links
+QuickPID myPID(&Input, &Output, &Setpoint);
+
+/*---
+---
+---
+---
+Motor Controller Declarations and Variables
+---
+---
+---
+---*/ 
+
+byte leftDIO = 2;
+byte leftPWM = 5;
+byte rightDIO = 4;
+byte rightPWM = 6;
+
 void DMPDataReady() {
   MPUInterrupt = true;
 }
 
-void setup() {
+void setupMPU6050() {
   #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
     Wire.begin();
     Wire.setClock(400000); // 400kHz I2C clock. Comment on this line if having compilation difficulties
@@ -67,17 +111,22 @@ void setup() {
   while (!Serial.available());                 // Wait for data
   while (Serial.available() && Serial.read()); // Empty buffer again
 
+  /*Print Calibrations*/
+  mpu.CalibrateAccel(20);
+  mpu.CalibrateGyro(20);
+  mpu.PrintActiveOffsets();
+
   /* Initializate and configure the DMP*/
   Serial.println(F("Initializing DMP..."));
   devStatus = mpu.dmpInitialize();
 
   /* Supply your gyro offsets here, scaled for min sensitivity */
-  mpu.setXGyroOffset(0);
-  mpu.setYGyroOffset(0);
-  mpu.setZGyroOffset(0);
-  mpu.setXAccelOffset(0);
-  mpu.setYAccelOffset(0);
-  mpu.setZAccelOffset(0);
+  mpu.setXGyroOffset(-13.00000);
+  mpu.setYGyroOffset(42.00000);
+  mpu.setZGyroOffset(16.00000);
+  mpu.setXAccelOffset(-1084.00000);
+  mpu.setYAccelOffset(-344.00000);
+  mpu.setZAccelOffset(1708.00000);
 
   /* Making sure it worked (returns 0 if so) */ 
   if (devStatus == 0) {
@@ -110,27 +159,80 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
 }
 
-void loop() {
-  if (!DMPReady) return; // Stop the program if DMP programming fails.
+void setupPID() {
+  Input = 0;
+  Setpoint = 0;
+
+  //apply PID gains
+  myPID.SetTunings(Kp, Ki, Kd);
+
+  //turn the PID on
+  myPID.SetMode(myPID.Control::automatic);
+  myPID.SetOutputLimits(-255, 255);
+}
+
+void setupMotorController() {
+  pinMode(leftDIO, OUTPUT);
+  pinMode(leftPWM, OUTPUT);
+  pinMode(rightDIO, OUTPUT);
+  pinMode(rightPWM, OUTPUT);
+}
+
+float readPitch() {
+  float pitch;
+  float yaw;
+  float roll;
     
   /* Read a packet from FIFO */
   if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) { // Get the Latest packet 
-    #ifdef OUTPUT_READABLE_QUATERNION
-      /* Display Quaternion values in easy matrix form: [w, x, y, z] */
+    #ifdef OUTPUT_READABLE_YAWPITCHROLL
+      yaw = ypr[0] * 180/M_PI;
+      pitch = ypr[1] * 180/M_PI;
+      roll = ypr[2] * 180/M_PI;
+
+      /* Display Euler angles in degrees */
       mpu.dmpGetQuaternion(&q, FIFOBuffer);
-      Serial.print("quat\t");
-      Serial.print(q.w);
-      Serial.print("\t");
-      Serial.print(q.x);
-      Serial.print("\t");
-      Serial.print(q.y);
-      Serial.print("\t");
-      Serial.println(q.z);
+      mpu.dmpGetGravity(&gravity, &q);
+      mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
     #endif
     /* Blink LED to indicate activity */
   blinkState = !blinkState;
   digitalWrite(LED_BUILTIN, blinkState);
   }
+
+  return pitch;
+}
+
+float computePID() {
+  Input = readPitch();
+  myPID.Compute();
+  return Output;
+}
+
+void controlDCMotors(int PIDvalue) {
+  float rate = abs(PIDvalue);
+  float direction = (PIDvalue >= 0);
+
+  digitalWrite(leftDIO, direction);
+  analogWrite(leftPWM, rate);
+  digitalWrite(rightDIO, direction);
+  analogWrite(rightPWM, rate);
+
+  Serial.print("direction:\t");
+  Serial.print(direction ? "Forward " : "Backward");
+  Serial.print("\trate:\t");
+  Serial.println(rate);
+}
+
+void setup() {
+  setupMPU6050();
+  setupPID();
+}
+
+void loop() {
+  if (!DMPReady) return; // Stop the program if DMP programming fails.
+  computePID();
+  controlDCMotors(Output);
 }
 
 // put function definitions here:
